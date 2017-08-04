@@ -14,5 +14,25 @@ or
 ```
 python main.py fast
 ```
-for faster version
+for faster version.
 
+Don't panic, *first iteration is longer than others*, because it creates a lot of models (like Monte Carlo approach).
+
+# Warnings
+Some warnings may occur:
+```
+0.0227517207086 10728.7667646
+WARNING:Inference:Model is masked in some entries where data is not.
+WARNING:Inference:Number of affected entries is 1. Sum of data in those entries is 0.0227517:
+```
+and:
+```
+can't invoke "event" command:  application has been destroyed
+    while executing
+"event generate $w <<ThemeChanged>>"
+    (procedure "ttk::ThemeChanged" line 6)
+    invoked from within
+"ttk::ThemeChanged"
+```
+
+It's okay, I know about this :)
