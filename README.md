@@ -1,9 +1,21 @@
 # Autodadi
 This is first working prototype of future autodadi.
 
-This application implements several basic features. Now it include testing genetic algorithm on inferring demographic hystory of two populations Eu and As from [article](http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1000695).
+This application implements several basic features. Now it includes testing genetic algorithm on inferring demographic history of two populations Eu and As from the [article](http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1000695).
 
-During run it print current progress in console, moreover it shows pictures in window (I hope so).
+During run it prints current progress in console, moreover shows pictures in a window (I hope so).
+
+# Requirements
+```
+python 2.X
+```
+Python modules:
+```
+dadi
+pillow
+Tkinter
+```
+
 
 # Run
 To run tool, print:
