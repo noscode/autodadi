@@ -42,11 +42,11 @@ class GA:
                 self.data.extend(cross_two_models(self.data[2*i], self.data[2*i+1]))
         def select(self, size):
             self.data = sorted(self.data, key=lambda x: fitness_function(x, GA.data, GA.theta, GA.ns, GA.pts), reverse=True)[:size]
-        def mutate(self, mutation_rate):
+        def mutate(self, mutation_rate, mutation_rate_for_period=0.2):
             size = len(self.data)
             for i in xrange(size):
                 self.data.append(copy.deepcopy(self.data[i]))
-                self.data[i].mutate(mutation_rate)
+                self.data[i].mutate(mutation_rate, mutation_rate_for_period)
 
 
     def __init__(self, num_of_generations = 100, s_of_population = 50, file_to_write_models=None):
@@ -60,6 +60,9 @@ class GA:
             self.output = open(file_to_write_models, 'w')
         else:
             self.output = None
+
+        self.best = None
+        self.without_changes = 0 # for stop
         
     def init_first_population_of_models(self, number_of_populations, total_time, time_per_generation, min_N, max_N):
         self.models = self.population_of_models(self.size_of_population * 5, number_of_populations, total_time, time_per_generation, min_N, max_N)
@@ -70,6 +73,8 @@ class GA:
         print "[-1]", self.best_fitness_value(),  self.models.data[0]
 
         if self.output is not None:
+            pickle.dump(total_time, self.output)
+            pickle.dump(time_per_generation, self.output)
             pickle.dump(self.best_model(), self.output)
 
     def set_params_for_dadi_scene(self, data, theta, ns, pts):
@@ -90,7 +95,10 @@ class GA:
     def run_one_iteration(self):
         start = time.time()
 
-        self.models.mutate(0.8)
+        if self.without_changes == 10:
+            self.models.mutate(1, mutation_rate_for_period=2)
+        else:
+            self.models.mutate(0.8)
         self.models.select(self.size_of_population)
 
         print "[" + str(self.cur_iteration) + "]", self.best_fitness_value(), self.models.data[0]
@@ -101,9 +109,16 @@ class GA:
         
         if self.output is not None:
             pickle.dump(self.best_model(), self.output)
+
+        if self.best_fitness_value() == self.best:
+            self.without_changes += 1
+        else:
+            self.best = self.best_fitness_value()
+            self.without_changes = 0
         
     def is_stoped(self):
-        return (self.cur_iteration > self.number_of_generations)
+#        return (self.cur_iteration > self.number_of_generations)
+        return self.without_changes > 15
 
     def run(self):
         while (not self.is_stoped()):

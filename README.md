@@ -14,6 +14,7 @@ Python modules:
 dadi
 pillow
 Tkinter
+matplotlib
 ```
 
 
@@ -27,6 +28,10 @@ or
 python main.py fast
 ```
 for faster version.
+After one of this versions yot can again draw progress in a window running:
+```
+python main.py from_file
+```
 
 Don't panic, *first iteration is longer than others*, because it creates a lot of models (like Monte Carlo approach).
 

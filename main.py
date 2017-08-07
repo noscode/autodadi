@@ -1,4 +1,4 @@
-from window_for_genetic_algorithm import window_for_ga
+from window_for_genetic_algorithm import window_for_ga, window_from_file
 from genetic_algorithm import GA
 import dadi
 import sys
@@ -31,12 +31,31 @@ def run_genetic_algorithm_for_people(number_of_generations = 100, size_of_popula
     else:
         ga_instance.run()
 
+def draw_window_from_file(input_file):
+    data = load_data_for_people()
+    
+    number_of_populations = 2
+    total_time = 1000
+    time_per_generation = 25
+    min_N = 10
+    max_N = 500000
+    
+    theta = 0.37396
+    ns = (20,20)
+    pts = [40, 50, 60]
+
+    root = window_from_file(input_file, data)
+    root.mainloop()
+    
 
 # usual run
 if len(sys.argv) == 1 or sys.argv[1] == 'usual':
     run_genetic_algorithm_for_people(out_file="people_models", display=True)
 
 #fast run
-if len(sys.argv) == 1 or sys.argv[1] == 'fast':
+elif len(sys.argv) == 2 and sys.argv[1] == 'fast':
     run_genetic_algorithm_for_people(number_of_generations = 50, size_of_population = 4, out_file="people_models", display=True)
+
+elif len(sys.argv) == 2 and sys.argv[1] == 'from_file':
+    draw_window_from_file("people_models")
 
