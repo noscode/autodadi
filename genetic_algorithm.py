@@ -18,9 +18,9 @@ def cross_two_models(model_1, model_2):
         child_1.periods[position].update(sum(child_1.periods[position-1].sizes_of_populations))
         child_2.periods[position].update(sum(child_2.periods[position-1].sizes_of_populations))
     if position != (model_1.number_of_periods - 1):
-        if model_1.periods[index+1].is_split_of_population:
-            child_1.periods[index+1].update(sum(child_1.periods[index].sizes_of_populations))
-            child_2.periods[index+1].update(sum(child_2.periods[index].sizes_of_populations))
+        if model_1.periods[position+1].is_split_of_population:
+            child_1.periods[position+1].update(sum(child_1.periods[position].sizes_of_populations))
+            child_2.periods[position+1].update(sum(child_2.periods[position].sizes_of_populations))
     child_1.fitness_func_value = None
     child_2.fitness_func_value = None
     return [child_1, child_2]
