@@ -19,21 +19,24 @@ matplotlib
 
 
 # Run
-To run tool, print:
+To run tool for YRI, CEU populations, print:
 ```
 python main.py 
 ```
 or
 ```
-python main.py fast
+python main.py usual
 ```
-for faster version.
-After one of this versions yot can again draw progress in a window running:
+for version with 20 samples in genetic algorithm (in default (fast) version it is 10).
+
+For cheetah (10 samples in genetic algorithm):
 ```
-python main.py from_file
+python main.py cheetah
 ```
 
 Don't panic, *first iteration is longer than others*, because it creates a lot of models (like Monte Carlo approach).
+
+You can find pictures in \[people/cheetah\]\_result\_pictures\_\[fast, usual\]/ directories
 
 # Warnings
 Some warnings may occur:
