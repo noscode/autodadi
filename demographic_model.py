@@ -57,6 +57,8 @@ class Period:
                         i -= 1
                 if i==0 and self.migration_rates[x][y] is not None:
                     break
+            if self.migration_rates[x][y] == 0 and sign == 1:
+                self.migration_rates[x][y] = random.random()*1e-6
             self.migration_rates[x][y] *= 1 + sign * np.random.uniform(0, mutation_rate)
             if self.migration_rates[x][y] < 1e-7:
                 self.migration_rates[x][y] = 0.0
@@ -110,15 +112,15 @@ class Period:
         if self.is_first_period:
             return "[ " + str([int(self.sizes_of_populations[0])]) + " ]"
         if self.is_split_of_population:
-            return '[ ' + str("%.2f" % self.split_procent) + ' ]'
+            return '[ ' + str("%.2f" % self.split_procent) + ', ' + str(self.sizes_of_populations[self.population_to_split]) + ', ' + str(self.sizes_of_populations[self.population_to_split+1]) +  ' ]'
         return '[ ' + str(int(self.time)) + ', ' + str([int(x) for x in self.sizes_of_populations]) + ', ' + str(self.exponential_growths) + ('' if self.migration_rates is None else (', ' + str(self.migration_rates))) + ' ]'
 
 
 class Split(Period):
     def __init__(self, split_procent, population_to_split, sizes_of_populations_before_split):
-        new_sizes_of_populations = sizes_of_populations_before_split[:population_to_split]
-        new_sizes_of_populations.extend([split_procent* sizes_of_populations_before_split[0], (1-split_procent) * sizes_of_populations_before_split[0]])
-        new_sizes_of_populations.extend(sizes_of_populations_before_split[population_to_split+1 :])
+        new_sizes_of_populations = list(sizes_of_populations_before_split)
+        new_sizes_of_populations[population_to_split] = split_procent * sizes_of_populations_before_split[population_to_split]
+        new_sizes_of_populations.append((1-split_procent) * sizes_of_populations_before_split[population_to_split])
         Period.__init__(
                 self,
                 time=0,
@@ -137,7 +139,7 @@ class Split(Period):
 
     def update(self, new_size_of_population_before_split):
         self.sizes_of_populations[self.population_to_split] = self.split_procent * new_size_of_population_before_split
-        self.sizes_of_populations[self.population_to_split+1] = (1-self.split_procent) * new_size_of_population_before_split
+        self.sizes_of_populations[-1] = (1-self.split_procent) * new_size_of_population_before_split
 
 
 
@@ -304,12 +306,57 @@ class Demographic_model:
                                 migration_rates=None))
         
         self.normalize_time()
-    
-    def dadi_code(self, theta1, ns, pts):
+
+    def normalize_Nref(self, optimal_sfs_scaling):
+        N_ref = optimal_sfs_scaling
+        for period in self.periods:
+            for i in xrange(period.number_of_populations):
+                period.sizes_of_populations[i] *= N_ref
+            period.time *= N_ref
+            if period.migration_rates is not None:
+                for x in xrange(len(period.migration_rates)):
+                    for y in xrange(len(period.migration_rates)):
+                        if period.migration_rates[x][y] is not None:
+                            period.migration_rates[x][y] /= N_ref
+
+    def change_from_vector(self, vector):
+        cur_index = 0
+        for period in self.periods:
+            period.sizes_of_populations = vector[cur_index: cur_index + period.number_of_populations]
+            if period.is_split_of_population:
+                period.split_procent = period.sizes_of_populations[period.population_to_split] / (period.sizes_of_populations[period.population_to_split] + period.sizes_of_populations[-1])
+            cur_index += period.number_of_populations
+        for period in self.periods:
+            if not period.is_split_of_population and not period.is_first_period:
+                period.time = vector[cur_index]
+                cur_index += 1
+        for period in self.periods:
+            if period.migration_rates is not None:
+                if period.number_of_populations == 2:
+                    period.migration_rates[0][1] = vector[cur_index]
+                    period.migration_rates[1][0] = vector[cur_index+1]
+                    cur_index += 2
+                else:
+                    period.migration_rates[0][1] = vector[cur_index]
+                    period.migration_rates[0][2] = vector[cur_index+1]
+                    period.migration_rates[1][0] = vector[cur_index+2]
+                    period.migration_rates[1][2] = vector[cur_index+3]
+                    period.migration_rates[2][0] = vector[cur_index+4]
+                    period.migration_rates[2][1] = vector[cur_index+5]
+                    cur_index += 6
+
+
+    def dadi_code(self, params, ns, pts=None):
+        if pts is None:
+            pts = ns
+            ns = params
+        else:
+            self.change_from_vector(params)
+
         xx = dadi.Numerics.default_grid(pts)
         for pos, period in enumerate(self.periods):
             if period.is_first_period:
-                phi = dadi.PhiManip.phi_1D(xx, theta0=theta1, nu=period.sizes_of_populations[0])
+                phi = dadi.PhiManip.phi_1D(xx, theta0=self.theta1, nu=period.sizes_of_populations[0])
             elif period.is_split_of_population:
                 if period.number_of_populations == 2:
                     phi = dadi.PhiManip.phi_1D_to_2D(xx, phi)
@@ -327,11 +374,11 @@ class Demographic_model:
                     else:
                         growth_funcs.append(_linear_growth_func(self.periods[pos-1].sizes_of_populations[i], period.sizes_of_populations[i], period.time))
                 if period.number_of_populations == 1:
-                    phi = dadi.Integration.one_pop(phi, xx, nu=growth_funcs[0], T=period.time, theta0=theta1)
+                    phi = dadi.Integration.one_pop(phi, xx, nu=growth_funcs[0], T=period.time, theta0=self.theta1)
                 elif period.number_of_populations == 2:
                     phi = dadi.Integration.two_pops(phi, xx,  T=period.time, nu1=growth_funcs[0], nu2=growth_funcs[1],
                             m12=0 if period.migration_rates == None else period.migration_rates[0][1],
-                            m21=0 if period.migration_rates == None else period.migration_rates[1][0], theta0=theta1)
+                            m21=0 if period.migration_rates == None else period.migration_rates[1][0], theta0=self.theta1)
                 else:
                     phi = dadi.Integration.three_pops(phi, xx,  T=period.time, nu1=growth_funcs[0], nu2=growth_funcs[1], nu3=growth_funcs[2],
                             m12=0 if period.migration_rates == None else period.migration_rates[0][1],
@@ -339,7 +386,7 @@ class Demographic_model:
                             m21=0 if period.migration_rates == None else period.migration_rates[1][0],
                             m23=0 if period.migration_rates == None else period.migration_rates[1][2], 
                             m31=0 if period.migration_rates == None else period.migration_rates[2][0],
-                            m32=0 if period.migration_rates == None else period.migration_rates[2][1], theta0=theta1)
+                            m32=0 if period.migration_rates == None else period.migration_rates[2][1], theta0=self.theta1)
         sfs = dadi.Spectrum.from_phi(phi, ns, [xx]*Demographic_model.number_of_populations)
         return sfs
 
@@ -441,41 +488,104 @@ class Demographic_model:
 
 
 
+    def get_vector_to_dadi(self):
+        vector = []
+        for period in self.periods:
+            if period.is_first_period:
+                vector.append(period.sizes_of_populations[0])
+            elif period.is_split_of_population:
+                vector.extend([period.sizes_of_populations[period.population_to_split], period.sizes_of_populations[-1]])
+            else:
+                vector.extend(period.sizes_of_populations)
+        for period in self.periods:
+            if not period.is_first_period and not period.is_split_of_population:
+                vector.append(period.time)
+        for period in self.periods:
+            if period.migration_rates is not None:
+                if period.number_of_populations == 2:
+                    vector.append(period.migration_rates[0][1])
+                    vector.append(period.migration_rates[1][0])
+                else:
+                    vector.append(period.migration_rates[0][1])
+                    vector.append(period.migration_rates[0][2])
+                    vector.append(period.migration_rates[1][0])
+                    vector.append(period.migration_rates[1][2])
+                    vector.append(period.migration_rates[2][0])
+                    vector.append(period.migration_rates[2][1])
 
+        return vector
     
     def dadi_code_to_file(self, filename):
         with open(filename, 'w') as output:
+            output.write("#current best params = " + str(self.get_vector_to_dadi()) + "\n")
             output.write("import dadi\ndef generated_model(params, ns, pts):\n")
+            Ns_len = 0
+            Ts_len = 0
+            for period in self.periods:
+                if period.is_first_period:
+                    Ns_len += 1
+                elif period.is_split_of_population:
+                    Ns_len += period.number_of_populations
+                else:
+                    Ns_len += period.number_of_populations
+                    Ts_len += 1
+            output.write("\tNs = params[:" + str(Ns_len) + "]\n")
+            output.write("\tTs = params[" + str(Ns_len) + ":" + str(Ns_len + Ts_len) + "]\n")
+            output.write("\tMs = params[" + str(Ns_len + Ts_len) + ":]\n")
+
             cur_index = 0
+            extra = 0
+            mig_index = Ns_len + Ts_len
             output.write("\ttheta1 = " + str(self.theta1) + '\n')
             output.write("\txx = dadi.Numerics.default_grid(pts)\n")
             for pos, period in enumerate(self.periods):
                 if period.is_first_period:
-                    output.write("\tphi = dadi.PhiManip.phi_1D(xx, theta0=theta1, nu=params[" + str(cur_index) + "])\n")
-                    cur_index += 1
+                    output.write("\tphi = dadi.PhiManip.phi_1D(xx, theta0=theta1, nu=Ns[" + str(cur_index) + "])\n")
+                    output.write("\tbefore = [Ns[" + str(cur_index) + "]]\n")
+                    extra += 1
                 elif period.is_split_of_population:
                     if period.number_of_populations == 2:
                         output.write("\tphi = dadi.PhiManip.phi_1D_to_2D(xx, phi)\n")
+                        output.write("\tbefore = Ns[" + str(cur_index + extra) + ":" + str(cur_index + extra + period.number_of_populations) +"]\n")
+                        extra += period.number_of_populations
                     else: #if period.number_of_populations == 3:
                         if period.population_to_split == 0:
                             output.write("\tphi = dadi.PhiManip.phi_2D_to_3D_split_1(xx, phi)\n")
+                            output.write("\tbefore[0] = Ns[" + str(cur_index + extra) + "]\n")
+                            output.write("\tbefore.append(Ns[" + str(cur_index + extra) + "]\n")
                         else: # if period.population_to_split == 1
                             output.write("\tphi = dadi.PhiManip.phi_2D_to_3D_split_2(xx, phi)\n")
+                            output.write("\tbefore[1] = Ns[" + str(cur_index + extra) + "]\n")
+                            output.write("\tbefore.append(Ns[" + str(cur_index + extra) + "]\n")
+
                 else: # change population size
                     growth_funcs = []
-                    output.write("\tT=params[" + str(cur_index) + "]\n")
+                    output.write("\tT = Ts[" + str(cur_index) + "]\n")
+                    output.write("\tafter = Ns[" + str(cur_index + extra) + ":" + str(cur_index + extra + period.number_of_populations) +"]\n")
+                    extra += period.number_of_populations - 1
+
                     for i in xrange(period.number_of_populations):
                         if period.exponential_growths[i]:
     #                        print self.periods[pos-1].sizes_of_populations[i], period.sizes_of_populations[i]
-                            growth_funcs.append(_expon_growth_func_str("params", "after", "T"))
+                            growth_funcs.append(_expon_growth_func_str("before[" + str(i) + "]", "after[" + str(i) + "]", "T"))
                         else:
-                            growth_funcs.append(_linear_growth_func_str("before", "after", "T"))
+                            growth_funcs.append(_linear_growth_func_str("before[" + str(i) + "]", "after[" + str(i) + "]", "T"))
                     if period.number_of_populations == 1:
-                        output.write("\tphi = dadi.Integration.one_pop(phi, xx, nu=" + growth_funcs[0] + ", T=" + str(period.time) + ", theta0=theta1)\n")
+                        output.write("\tgrowth_func = " + growth_funcs[0] + "\n")
+                        output.write("\tphi = dadi.Integration.one_pop(phi, xx, nu=growth_func, T=T, theta0=theta1)\n")
                     elif period.number_of_populations == 2:
-                        output.write("\tphi = dadi.Integration.two_pops(phi, xx,  T=" + str(period.time) + ", nu1=" + growth_funcs[0] + ", nu2=" + growth_funcs[1] + ", m12=" + ("0" if period.migration_rates == None else str(period.migration_rates[0][1])) + ", m21=" + ("0" if period.migration_rates == None else str(period.migration_rates[1][0])) + ", theta0=theta1)\n")
+                        output.write("\tgrowth_func_1 = " + growth_funcs[0] + "\n")
+                        output.write("\tgrowth_func_2 = " + growth_funcs[1] + "\n")
+                        output.write("\tphi = dadi.Integration.two_pops(phi, xx,  T=T, nu1=growth_func_1, nu2=growth_func_2, m12=" + ("0" if period.migration_rates == None else "params["+str(mig_index) + "]") + ", m21=" + ("0" if period.migration_rates == None else "params["+str(mig_index + 1) + "]") + ", theta0=theta1)\n")
+                        mig_index += 2
                     else:
-                        output.write("\tphi = dadi.Integration.two_pops(phi, xx,  T=" + str(period.time) + ", nu1=" + growth_funcs[0] + ", nu2=" + growth_funcs[1] + ", nu3=" + growth_funcs[2] + ", m12=" + "0" if period.migration_rates == None else str(period.migration_rates[0][1]) + "m13=" + "0" if period.migration_rates == None else str(period.migration_rates[0][2]) + ", m21=" + "0" if period.migration_rates == None else str(period.migration_rates[1][0]) + "m23=" + "0" if period.migration_rates == None else str(period.migration_rates[1][2]) + "m31=" + "0" if period.migration_rates == None else str(period.migration_rates[2][0]) + "m32=" + "0" if period.migration_rates == None else str(period.migration_rates[2][1]) + ", theta0=theta1)\n")
+                        output.write("\tgrowth_func_1 = " + growth_funcs[0] + "\n")
+                        output.write("\tgrowth_func_2 = " + growth_funcs[1] + "\n")
+                        output.write("\tgrowth_func_3 = " + growth_funcs[2] + "\n")
+                        output.write("\tphi = dadi.Integration.two_pops(phi, xx,  T=T, nu1=growth_func_1, nu2=growth_func_2, nu3=growth_func_3, m12=" + ("0" if period.migration_rates == None else "params["+str(mig_index) + "]") + "m13=" + ("0" if period.migration_rates == None else "params["+str(mig_index + 1) + "]") + ", m21=" + ("0" if period.migration_rates == None else "params["+str(mig_index + 2) + "]") + "m23=" + ("0" if period.migration_rates == None else "params["+str(mig_index + 3) + "]") + "m31=" + ("0" if period.migration_rates == None else "params["+str(mig_index + 4) + "]") + "m32=" + ("0" if period.migration_rates == None else "params["+str(mig_index + 5) + "]") + ", theta0=theta1)\n")
+                        mig_index += 6
+                    cur_index += 1
+                    output.write("\tbefore = after\n")
             output.write("\tsfs = dadi.Spectrum.from_phi(phi, ns, [xx]*" + str(Demographic_model.number_of_populations) + ")\n\treturn sfs\n")
             
 

@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')
 #from window_for_genetic_algorithm import window_for_ga, window_from_file
 from genetic_algorithm import GA
 #from hill_climbing import HC, HC_multi
@@ -24,7 +26,7 @@ def load_data_for_cheetah():
     data = dadi.Spectrum.from_data_dict(dd, pop_ids=['Tan', 'Nam'], projections=[6, 8])
     return data
     
-def run_genetic_algorithm_for_people(number_of_generations = 100, size_of_population = 30, draw_pictures_dir=False, out_file=None):
+def run_genetic_algorithm_for_people(size_of_population = 30, draw_pictures_dir=False, out_file=None):
     data = load_data_for_people()
     
     number_of_populations = 2
@@ -40,7 +42,7 @@ def run_genetic_algorithm_for_people(number_of_generations = 100, size_of_popula
     
     output_file = open("2d_yri_ceu_models", 'w')
     for i in xrange(10):
-        ga_instance = GA(number_of_generations, size_of_population)
+        ga_instance = GA(size_of_population)
         ga_instance.set_params_for_dadi_scene(data, theta, ns, pts)
         ga_instance.init_first_population_of_models(number_of_populations, total_time, time_per_generation)
 
@@ -50,6 +52,20 @@ def run_genetic_algorithm_for_people(number_of_generations = 100, size_of_popula
             ga_instance.run()
         if out_file is not None:
             pickle.dump(ga_instance.models.data, out_file)
+        if i == 0:
+            best_model = ga_instance.best_model()
+            best_models_list = [best_model]
+        else:
+            best_models_list.append(ga_instance.best_model())
+            if (ga_instance.best_model().fitness_func_value > best_model.fitness_func_value):
+                best_model = ga_instance.best_model()
+    print "RESULT:"
+    for m in best_models_list:
+        print m.fitness_func_value, m.as_vector()
+    print "BEST MODEL:"
+    print best_model.fitness_func_value, best_model.as_vector()
+
+
 
 def run_genetic_algorithm_for_cheetah(size_of_population = 30, draw_pictures_dir=False, out_file=None):
     data = load_data_for_cheetah()
@@ -124,16 +140,16 @@ def run_genetic_algorithm_for_cheetah(size_of_population = 30, draw_pictures_dir
 #    root.mainloop()
     
 #load_new_data()
-## usual run
+# usual run
 if len(sys.argv) == 2 and sys.argv[1] == 'usual':
     run_genetic_algorithm_for_people(out_file="people_models", draw_pictures_dir='people_result_pictures_usual/')
 
 #fast run
 elif len(sys.argv) == 1 or sys.argv[1] == 'fast':
-    run_genetic_algorithm_for_people(size_of_population = 10, out_file="people_models", draw_pictures_dir='people_result_pictures_fast/')
+    run_genetic_algorithm_for_people(size_of_population = 10, out_file="people_models", draw_pictures_dir='people_result_pictures_fast_3/')
 
 elif len(sys.argv) == 1 or sys.argv[1] == 'cheetah':
-    run_genetic_algorithm_for_cheetah(size_of_population = 10, out_file="cheetah_models", draw_pictures_dir='cheetah_result_pictures/')
+    run_genetic_algorithm_for_cheetah(size_of_population = 10, out_file="cheetah_models", draw_pictures_dir='cheetah_result_pictures_3/')
 
 
 #elif len(sys.argv) == 2 and sys.argv[1] == 'from_file':
@@ -184,7 +200,7 @@ elif len(sys.argv) == 1 or sys.argv[1] == 'cheetah':
 #        new_img.save('model.png')
 
 
-
+#
 #data = dadi.Spectrum.from_file('YRI.CEU.CHB.fs')
 #data = data.marginalize([2])
 #
@@ -233,12 +249,42 @@ elif len(sys.argv) == 1 or sys.argv[1] == 'cheetah':
 #        exponential_growths=[1,0],
 #        migration_rates=None))
 #
+#Demographic_model.theta1 = theta
 #print m.as_vector()
 #print m.get_total_time()
 #func_ex = dadi.Numerics.make_extrap_log_func(m.dadi_code)
-#m.sfs = func_ex(theta, ns, pts)
+#m.sfs = func_ex(ns, pts)
+#print dadi.Inference.ll(m.sfs, data)
+#m.dadi_code_to_file("model_test.py")
+#
+#sfs = func_ex(m.get_vector_to_dadi(), ns, pts)
+#print dadi.Inference.ll(sfs, data)
+#
+#params = m.get_vector_to_dadi()
+#popt = dadi.Inference.optimize_log(params, data, func_ex, pts, verbose=len(params), maxiter=3, multinom=False)
+#
+#print m.as_vector()
+#sfs = func_ex(m.get_vector_to_dadi(), ns, pts)
+#print dadi.Inference.ll(sfs, data)
+#
+#m.dadi_code_to_file("model_test.py")
+
+#m = Demographic_model(number_of_populations=number_of_populations, total_time=total_time, time_per_generation=time_per_generation)
+#m.init_simple_model()
+#print m.as_vector()
+#func_ex = dadi.Numerics.make_extrap_log_func(m.dadi_code)
+#m.sfs = func_ex(ns, pts)
+#print dadi.Inference.ll(m.sfs, data)
+#print dadi.Inference.ll_multinom(m.sfs, data)
+#
+#opt_sc = dadi.Inference.optimal_sfs_scaling(m.sfs, data)
+#print opt_sc
+#m.normalize_Nref(opt_sc)
+#print m.as_vector()
+#m.sfs = func_ex(ns, pts)
 #print dadi.Inference.ll(m.sfs, data)
 #
+
 #save_picture(m, data)
 #
 #import moments

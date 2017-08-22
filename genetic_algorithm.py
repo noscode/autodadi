@@ -29,8 +29,10 @@ def fitness_function(model, data, theta, ns, pts):
     if model.fitness_func_value is not None:
         return model.fitness_func_value
     func_ex = dadi.Numerics.make_extrap_log_func(model.dadi_code)
-    model.sfs = func_ex(theta, ns, pts)
-    model.fitness_func_value = dadi.Inference.ll(model.sfs, data)
+    model.sfs = func_ex(ns, pts)
+    model.fitness_func_value = dadi.Inference.ll_multinom(model.sfs, data)
+    model.normalize_Nref(dadi.Inference.optimal_sfs_scaling(model.sfs, data))
+    model.sfs = func_ex(ns, pts)
 #    model.ll_multinom = dadi.Inference.ll_multinom(model.sfs, data)
     return model.fitness_func_value
 
@@ -56,8 +58,10 @@ class GA:
         self.models.data = sorted(self.models.data, key=lambda x: fitness_function(x, GA.data, GA.theta, GA.ns, GA.pts), reverse=True)[:size]
         print "CURRENT POPULATION OF MODELS:"
         for i, model in enumerate(self.models.data):
-            print i, model.as_vector()
+            fitness_function(model, GA.data, GA.theta, GA.ns, GA.pts)
+            print i, int(model.fitness_func_value), model.as_vector()
 
+        
 
 
 
@@ -79,8 +83,7 @@ class GA:
             return new_model_2
 
 
-    def __init__(self, num_of_generations = 100, s_of_population = 20, procent_of_old_models=0.2, procent_of_mutated_models=0.3, procent_of_crossed_models=0.3, file_to_write_models=None):
-        self.number_of_generations = num_of_generations
+    def __init__(self, s_of_population = 20, procent_of_old_models=0.2, procent_of_mutated_models=0.3, procent_of_crossed_models=0.3, file_to_write_models=None):
         self.size_of_population = s_of_population
         self.number_of_old_models = int(self.size_of_population*procent_of_old_models)
         self.number_of_mutated_models  = int(self.size_of_population * procent_of_mutated_models)
@@ -99,7 +102,7 @@ class GA:
         self.without_changes = 0 # for stop
         
     def init_first_population_of_models(self, number_of_populations, total_time, time_per_generation):
-        self.models = self.population_of_models(max(250, self.size_of_population * 5), number_of_populations, total_time, time_per_generation)
+        self.models = self.population_of_models(max(20, self.size_of_population * 5), number_of_populations, total_time, time_per_generation)
         self.select(self.size_of_population)
         
         fitness_function(self.models.data[0], GA.data, GA.theta, GA.ns, GA.pts)
@@ -116,6 +119,7 @@ class GA:
     def set_params_for_dadi_scene(self, data, theta, ns, pts):
         GA.data = data
         GA.theta = theta
+        Demographic_model.theta1 = theta
         GA.ns = ns
         GA.pts = pts
 
@@ -137,7 +141,7 @@ class GA:
         for m in self.models.data:
             p.append(m.fitness_func_value)
         p = np.array(p)
-        p -= min(p)
+        p -= min(p) - 1
         p /= sum(p)
 #        print p
 
@@ -152,7 +156,10 @@ class GA:
 
 
         for i in xrange(self.number_of_crossed_models / 2):
-            for x in cross_two_models(np.random.choice(self.models.data, p=p), np.random.choice(self.models.data, p=p)):
+            first_model_index = np.random.choice(xrange(len(self.models.data)), p=p)
+            p[first_model_index] = 0
+            p /= sum(p)
+            for x in cross_two_models(self.models.data[first_model_index], np.random.choice(self.models.data, p=p)):
                 new_models.add_model(x) 
 
         for i in xrange(self.number_of_random_models):
@@ -191,7 +198,11 @@ class GA:
             self.run_one_iteration()
             if draw_pictures_dir is not None:
                 self.save_picture_to_dir(draw_pictures_dir)
-
+        print "TRY TO IMPROVE MODEL:"
+        model = self.best_model()
+        func_ex = dadi.Numerics.make_extrap_log_func(model.dadi_code)
+        params = model.get_vector_to_dadi()
+        popt = dadi.Inference.optimize_log(params, data, func_ex, pts, verbose=len(params), maxiter=3, multinom=False)
 
     def save_picture_to_dir(self, draw_pictures_dir):
         import PIL
